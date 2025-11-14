@@ -325,7 +325,7 @@ proc asFloat*(parseRes: ParseResult, flagName: string): float =
     quit(1)
 
 
-proc `[]`*(parseRes: ParseResult, flagName: string): string = 
+proc asString*(parseRes: ParseResult, flagName: string): string = 
   let value = parseRes.data.getOrDefault(flagName)
   return value
 
