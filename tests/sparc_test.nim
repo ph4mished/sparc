@@ -28,11 +28,11 @@ suite "Value Conversions":
     let parsed = schema.parseCommandLine(runTimeValues)
    
     test "String Conversion":
-      let input = parsed["input"]
+      let input = parsed.asString("input")
       check input.type is  string
 
     test "Integer Conversion":
-      let thread = parsed["thread"]
+      let thread = parsed.asString("thread")
       check thread.type is not int
       
       #string to integer conversion
@@ -44,7 +44,7 @@ suite "Value Conversions":
     
 
     test "Bool Conversion Check":
-      let help = parsed["help"]
+      let help = parsed.asString("help")
       check help.type is not bool
       #string to bool conversion
       check parsed.asBool("help") is bool
