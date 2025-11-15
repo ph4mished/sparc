@@ -46,7 +46,7 @@ proc main() =
   if args.flagExists(inputFile) and args.flagExists(outputFile):
     if verbose:
       echo "Starting conversion in verbose mode ..."
-      #[verbose mode logic here]
+      #verbose mode logic here
     else:
       echo "Converting ", inputFile, " to ", outputFile
 
