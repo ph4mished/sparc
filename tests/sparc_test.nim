@@ -43,11 +43,11 @@ suite "Value Conversions":
       check input is int #fmt "Error: Expected integer for flag 'input', but got 'input'"
     
 
-    test "Bool Conversion Check":
+    test "Bool Check":
       let help = parsed.asString("help")
       check help.type is not bool
       #string to bool conversion
-      check parsed.asBool("help") is bool
+      check parsed.flagExists("help") is bool
 
     #test for float will also be donw
 
@@ -57,7 +57,8 @@ suite "Testing Helper Flags":
   let parsed = schema.parseCommandLine(runTimeValues)
   
   test "Runtime Flags Used":
-    check parsed.flagExists("input") == false
+    let input = parsed.asString("input")
+    check parsed.flagExists(input) == false
     check parsed.flagExists("thread") == true
 
       

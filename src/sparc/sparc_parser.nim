@@ -329,9 +329,6 @@ proc asString*(parseRes: ParseResult, flagName: string): string =
   let value = parseRes.data.getOrDefault(flagName)
   return value
 
-proc asBool*(parseRes: ParseResult, flagName: string): bool = 
-  return parseRes.data.hasKey(flagName)
-
 proc getAllFlags*(schema: Schema): Table[string, Flag] =
   ## Get all flags as a table
   var parseRes = initTable[string, Flag]()
