@@ -55,3 +55,21 @@ when isMainModule:
 ```
 
 # SPARC is not stable yet, not even near stable (still expect breaking changes)
+## The current syntax or form is more likely to change from stringy form to sectional/ DSL form
+As in 
+``` nim
+#this is just an idea
+import sparc
+
+program:
+  name "myTool"
+  flags:
+    "verbose", "v", "Enable debugging mode"
+    "help, "h", "Show this help and exit"
+
+  options:
+    "input", string, "i", "Accept input", required=true
+    "output", string, "o", "Write results to file"
+    "timeout", int, "Timeout in secconds", default=10
+```
+
