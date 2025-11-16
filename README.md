@@ -52,3 +52,6 @@ proc main() =
 
 when isMainModule:
   main()
+```
+
+# SPARC is not stable yet, not even near stable (still expect breaking changes)
