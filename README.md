@@ -57,8 +57,6 @@ proc main() =
 
 when isMainModule:
   main()
-<<<<<<< Updated upstream
-=======
 
 ```
 
@@ -90,5 +88,4 @@ OPTIONS:
     -d, --delay VALUE                       Delay between request (ms) [default: 100]
     -T, --timeout VALUE                     Request timeout (seconds) [default: 5]
     -o, --output VALUE                      Output file for results
->>>>>>> Stashed changes
 ```
