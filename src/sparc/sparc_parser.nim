@@ -1,171 +1,102 @@
-import strutils, tables, os, strformat, terminal
+import strutils, tables, os, strformat, terminal, parseOpt
 
 type
-  Schema* = object
-    cli*: Cli
-    flags*: seq[Flag]
-    commands*: seq[Command]
-    examples*: seq[Example]
-  
-  Cli* = object
+  Schema* = ref object
     app*: string
     version*: string
     description*: string
+    flags*: seq[Flag]
+    options*: seq[Option]
+    commands*: seq[Command]
+    #examples*: seq[Example]
+  
 
   #support commands, subcommands and args
   Arg* = object
     name*: string
-    argType*: string
     help*: string
   
   Flag* = object
-    name*:string
-    short*:string
-    flagType*:string
-    default*: string 
+    name*: string
+    aliases*: seq[string]
+    #[long*:string
+    short*:string]#
     help*: string
     #group*: string
     #required*: bool
+
+  Option* = object
+    name*: string #typedesc
+    aliases*: seq[string]
+    #[long*:string
+    short*:string]#
+    required*: bool
+    default*: string 
+    help*: string
 
   Command* = object
     name*: string
     help*: string
 
-  Example* = object
+  #[Example* = object
     name*: string
-    command: string
+    command: string]#
   
   ParseResult* = ref object
     data*: Table[string, string]
-    flagType*: Table[string, string]
+    #flagType*: Table[string, string]
     #positionalArg*: seq[string]
     #command: Table*[string, string]
     #subcommand*: Table[string, string]
 
 
 
-proc parseSchema*(input: string): Schema =
-  var 
-    inReadMode = false
-    currentTag = ""
-    tags: seq[string] = @[]
-    cli = Cli()
-    flags: seq[Flag] = @[]
-    examples: seq[Example] = @[]
-    
-  
-  # Extract tags between [ and ]
-  for ch in input:
-    if ch == '[' and not inReadMode:
-      inReadMode = true
-    elif ch == ']' and inReadMode:
-      inReadMode = false
-      tags.add(currentTag)
-      currentTag = ""
-    elif inReadMode:
-      currentTag.add(ch)
-  
-  #var 
-    
-  
-  for tag in tags:
-    var
-      flag = Flag()
-      example = Example()
-    # Get first word (command type)
-    var firstWord = ""
-    for ch in tag:
-      if ch == ' ': break
-      firstWord.add(ch)
-  
-    var i = firstWord.len
-      
-    while i < tag.len:
-      # Skip spaces
-      while i < tag.len and tag[i] == ' ': inc i
-      if i >= tag.len: break
-        
-      # Read key
-      var key = ""
-      while i < tag.len and tag[i] != '=' and tag[i] != ' ':
-        key.add(tag[i])
-        inc i
-        
-      # Skip =
-      if i < tag.len and tag[i] == '=': inc i
-        
-      # Read value
-      var value = ""
-      if i < tag.len and tag[i] == '"':
-        inc i
-        while i < tag.len and tag[i] != '"':
-          value.add(tag[i])
-          inc i
-        if i < tag.len and tag[i] == '"': inc i
-      else:
-        while i < tag.len and tag[i] != ' ':
-          value.add(tag[i])
-          inc i
-        
-        
-      # Store in flag
-      if firstWord == "flag":
-        case key 
-        of "name": flag.name = value
-        of "short": flag.short = value
-        of "type": flag.flagType = value
-        #of "required": flag.required = value == "true"
-        of "default": flag.default = value
-        of "help": flag.help = value
-      
-      #store in cli
-      elif firstWord == "cli":
-        case key
-        of "app": cli.app = value
-        of "version": cli.version = value
-        of "description": cli.description = value
-      
-      elif firstWord == "example":
-        case key
-        of "name": example.name = value
-        of "command": example.command = value
+#i dropped schema because its too much stringy so a typo wont be obvious, this is bad
+#maybe instead of args.flag("--input", "-i", "Show input")
+#why not args.flag(input, @["-i", "--input"], help="Show input) #this requires pointers
+#what of args.flag(@["-i", "--input"], help="Show input), perfect
+#no macros, no template, just procs and no types
 
-    if flag.name != "":
-      flags.add(flag)
 
-    if example.name != "":
-      examples.add(example)
+#proc flag*(args: Schema, seqParam: seq[string], help: string="") = 
+proc newCmd*(app: string="", version: string="", description: string=""): Schema = 
+  #no need to type name, get name from filename
+  let appName = if app == "": getAppFileName().splitFile.name else: app
+  result = Schema(app: appName, version: version, description: description)
+
   
-  return Schema(cli: cli #[, groups: groups]#, flags: flags, examples: examples)
+proc flag*(schema: Schema, name: string, aliases: seq[string], help: string="") =
+  schema.flags.add(Flag(name: name, aliases: aliases, help: help))
+
+
+#template opt*(schema: Schema, name: untyped, aliases: openArray[string], help: string="", default: typedesc): untyped = 
+
+proc opt*(schema: Schema, name: string, aliases: seq[string], help: string="", default: string="", required: bool=false) =
+  schema.options.add(Option(name: name, aliases: aliases, help: help, default: default, required: required))
+
 
 
 #auto generate and define what shows when --version is typed
-proc generateHelp(schema: Schema): string =
+proc generateHelp*(schema: Schema): string =
   var sections: seq[string] 
-
   #Cli header
-  if schema.cli.app != "":
-    var 
-      title: string = ""
-    var header = schema.cli.app
-    if schema.cli.version != "":
-      title = fmt "{schema.cli.app.toUpperAscii()} v{schema.cli.version}"
-    else:
-      title = fmt "{schema.cli.app.toUpperAscii()}"
-    let padding = " ".repeat((terminalWidth() - title.len) div 2)
-    let borderPadding = " ".repeat((terminalWidth() - title.len-16) div 2)
-    let border =  "=".repeat(title.len+16)
-    header.add(fmt "\n{borderPadding}{border}\n")
-    header.add(fmt "{padding}{title}\n")
-    header.add(fmt "{borderPadding}{border}\n")
+  var header = ""
+  let title = if schema.version == "": fmt "{schema.app.toUpperAscii()}" else: fmt "{schema.app.toUpperAscii()} v{schema.version}"
+
+  let padding = " ".repeat((terminalWidth() - title.len) div 2)
+  let borderPadding = " ".repeat((terminalWidth() - title.len-16) div 2)
+  let border =  "=".repeat(title.len+16)
+  header.add(fmt "\n{borderPadding}{border}\n")
+  header.add(fmt "{padding}{title}\n")
+  header.add(fmt "{borderPadding}{border}\n")
       #header.add(fmt "v{schema.cli.version}")
-    if schema.cli.description != "":
-      header.add(fmt "\n{schema.cli.description}")
-    sections.add(header)
+  if schema.description != "":
+    header.add(fmt "\n{schema.description}")
+  sections.add(header)
 
   #usage section
   var usage = "USAGE:\n"
-  usage.add(fmt "    {schema.cli.app}")
+  usage.add(fmt "    {schema.app}")
   if schema.commands.len > 0:
     usage.add(" [COMMAND]")
   usage.add(" [FLAGS]")
@@ -188,31 +119,44 @@ proc generateHelp(schema: Schema): string =
     var flags = "FLAGS:\n"
     for flag in schema.flags:
       var flagLine = ""
-      if flag.short != "":
-        flagLine.add(fmt "-{flag.short}, --{flag.name}")
-      else:
-        flagLine.add(fmt "    --{flag.name}")
+      flagLine.add(flag.aliases.join(", "))
 
-      if flag.flagType != "bool":
-        flagLine.add(fmt " {flag.flagType.toUpperAscii}")
-      
-      while flagLine.len < 28:
+      while flagLine.len < 40:
         flagLine.add(" ")
       flagLine.add(fmt "{flag.help}")
 
-      if flag.default != "":
-        flagLine.add(fmt "[default: {flag.default}]")
-      
       flags.add(fmt "    {flagLine}\n")
     sections.add(flags)
     
+
+  #flags section
+  if schema.options.len > 0:
+    var options= "OPTIONS:\n"
+    for opt in schema.options:
+      var optLine = ""
+      optLine.add(opt.aliases.join(", "))
+      
+      optLine.add(" VALUE")
+      
+      while optLine.len < 40:
+        optLine.add(" ")
+      optLine.add(fmt "{opt.help}")
+
+      if opt.default != "":
+        optLine.add(fmt " [default: {opt.default}]")
+      
+      if opt.required:
+        optLine.add(fmt " (required)")
+    
+      options.add(fmt "    {optLine}\n")
+    sections.add(options)
   #example section
-  if schema.examples.len > 0:
+  #[if schema.examples.len > 0:
     var examples = "EXAMPLES:\n"
     for example in schema.examples:
       examples.add(fmt "    {example.name}:\n")
       examples.add(fmt "        {example.command}\n\n")
-    sections.add(examples)
+    sections.add(examples)]#
   
   result = sections.join("\n\n")
 
@@ -221,7 +165,20 @@ proc help*(schema: Schema): string =
   generateHelp(schema)
 
 
+proc flagUsed(aliases: seq[string], args=commandLineParams()): bool = 
+  var count = 0
+  for alias in aliases:
+    if alias in args:
+      inc(count)
+  if count > 0:
+    return true
+  else:
+    return false
+    
+  #echo "COUNT: ", count
 
+proc isFlag(arg: string): bool = 
+  return arg.startsWith("--") or arg.startsWith("-")
 
 
 proc parseCommandLine*(schema: Schema, args=commandLineParams()): ParseResult =
@@ -231,76 +188,69 @@ proc parseCommandLine*(schema: Schema, args=commandLineParams()): ParseResult =
     i = 0
   
 
-  while i < args.len:
+  #while i < args.len:
+  for arg in args:
     var flagFound = false
-    let arg = args[i]
-    #long flag
-    if arg.startsWith("--"):
-      let flagName = arg[2..^1]
+  
+    if arg.isFlag(): #arg.startsWith("--") or arg.startsWith("-"):
+     
       #find the value in schema
       for flag in schema.flags:
-        if flag.name == flagName:
+        if arg in flag.aliases:
+          if arg in @["--help", "-h"] or flag.name == "help":
+            echo schema.generateHelp
+            quit(0)
+          if schema.version != "":
+            if arg in @["--version", "-v"] or flag.name == "version":
+              echo fmt"{schema.app} v{schema.version}"
+              quit(0)
           flagFound = true
-          if flag.flagType == "bool":
-            #result.flagType[flagName] = flag.flagType
-            data[flagName] = "true"
-          else:
+          data[flag.name] = "true"
+          
+          
+          #for options
+      for option in schema.options:
+        
+        if not flagUsed(option.aliases, args) and option.required:
+          echo fmt"Error: required option not set: {option.name}" 
+          quit(1)
+        
+        if arg in option.aliases:
+          flagFound = true
           #get the value (next argument)
-            inc i 
-            if i >= args.len:
-              echo fmt "Error: Missing value after flag '{arg}'"
-              quit(1)
-              #result.flagType[flagName] = flag.flagType
-            data[flagName] = args[i]
-          break
+          #inc i 
+          if i+1 >= args.len:
+            echo fmt "Error: missing value after option: {arg}"
+            quit(1)
+          data[option.name] = args[i+1]
+
+      #for required
+      #for option in schema.options:
+        
+        #else:
+
+        
+
       if not flagFound:
-        #raise newException(ValueError, fmt "Unknown flag: {arg}")
-        echo fmt "Unknown flag: {arg}"
+        echo fmt "Error: unknown flag: {arg}"
         quit(1)
 
-    elif arg.startsWith("-"):
-      let shortName = arg[1..^1]
-      
-      for flag in schema.flags:
-        if flag.short == shortName:
-          flagFound = true
-          
-          if flag.flagType == "bool":
-            #result.flagType[flag.name] = flag.flagType
-            #result.
-            data[flag.name] = "true"
-          else:
-            #get the value
-            inc i 
-            if i >= args.len:
-              echo fmt "Error: Missing value after flag '{arg}'"
-              quit(1)
-              #result.flagType[flag.name] = flag.flagType
-              #result.
-            data[flag.name] = args[i]
-          break
-      if not flagFound:
-        echo fmt "Unknown flag: {arg}"
-        quit(1)
-        #raise newException(ValueError, fmt "Unknown flag: {arg}")
   
     #else: else handle positional argument or unknown
     inc i
   return ParseResult(data: data)
 
-  #default for flags that werent provided
-  #[for flag in schema.flags:
-    if not result.data.hasKey(flag.name) and flag.default != "":
-      #result.
-      data[flag.name] = flag.default]#
+        
 
 
-
-proc flagExists*(parseRes: ParseResult, flagName: string): bool =
-  # Check if flag with this name was used
+proc has*(parseRes: ParseResult, flagName: string): bool =
+  # Check if flag with this name was used on commandLine
   return parseRes.data.hasKey(flagName)
 
-    
+proc asBool*(parseRes: ParseResult, flagName: string): bool = 
+  return parseRes.data.hasKey(flagName)
+
+
 proc asInt*(parseRes: ParseResult, flagName: string): int =
   let value = parseRes.data.getOrDefault(flagName)
   try:
@@ -309,7 +259,7 @@ proc asInt*(parseRes: ParseResult, flagName: string): int =
     else:
       return 0
   except ValueError:
-    echo fmt "Error: Expected integer for flag '{flagName}', but got '{value}'"
+    echo fmt "Error: Expected integer for flag '--{flagName}', but got '{value}'"
     quit(1)
 
 
@@ -321,7 +271,7 @@ proc asFloat*(parseRes: ParseResult, flagName: string): float =
     else:
       return 0.0
   except ValueError:
-    echo fmt "Error: Expected float for flag '{flagName}, but got  '{value}"
+    echo fmt "Error: Expected float for flag '--{flagName}', but got  '{value}"
     quit(1)
 
 
@@ -334,26 +284,3 @@ proc getAllFlags*(schema: Schema): Table[string, Flag] =
   var parseRes = initTable[string, Flag]()
   for flag in schema.flags:
     parseRes[flag.name] = flag
-
-
-
-
-#[proc get*(parseRes: ParseResult, flagName: string): auto =
-  if not parseRes.flagType.hasKey(flagName) or parseRes.data.hasKey(flagName):
-    echo fmt "Flag not found: {flagName}"
-    quit(1)
-   
-  let flagType = parseRes.flagType[flagName]
-  #let rawValue = parseRes.data[flagName]
-
-  case flagType:
-  of "int":
-    return getInt(parseRes, flagName)
-  of "string":
-    return getString(parseRes, flagName)
-  of "bool":
-    return getBool(parseRes, flagName)
-  else:
-    echo fmt "Error: Unknown flag type: {flagType}"
-    quit(1)]#
-    
